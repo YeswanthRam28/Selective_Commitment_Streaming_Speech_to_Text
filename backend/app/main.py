@@ -6,11 +6,12 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
+from contextlib import asynccontextmanager
 
 from app.models.events import PolicyConfig, PolicyMode, HypothesisEvent
 from app.core.session import TranscriptionSession
-from app.adapters.mock_adapter import DeterministicMockRecognizer, DEFAULT_MOCK_SCRIPT
-from app.adapters.aws_adapter import AWSTranscribeAdapter, AWS_AVAILABLE
+from app.adapters.mock_adapter import DeterministicMockRecognizer
+from app.adapters.whisper_adapter import WhisperRecognizer
 from app.metrics.evaluator import compute_wer
 
 try:
@@ -19,29 +20,17 @@ try:
 except ImportError:
     TORCH_AVAILABLE = False
 
-from contextlib import asynccontextmanager
-
-try:
-    from app.adapters.deep_learning_adapter import DeepLearningRecognizer
-    DL_AVAILABLE = True
-except Exception as e:
-    DL_AVAILABLE = False
-
-try:
-    from app.adapters.whisper_adapter import WhisperRecognizer
-    WHISPER_AVAILABLE = True
-except Exception as e:
-    WHISPER_AVAILABLE = False
+WHISPER_AVAILABLE = True
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
     Server startup initialization:
-    Pre-loads Whisper and Wav2Vec2 models into GPU memory and performs warm-up passes
-    so streaming speech recognition starts with ZERO latency and zero cold-start delay.
+    Pre-loads Whisper model into GPU memory and performs warm-up pass
+    so streaming speech recognition starts with ZERO cold-start delay.
     """
     print("\n" + "=" * 70)
-    print("[Server Startup] INITIALIZING STREAMING ASR SUBSYSTEMS ON GPU")
+    print("[Server Startup] INITIALIZING WHISPER STREAMING ASR SUBSYSTEM")
     print("=" * 70)
     if TORCH_AVAILABLE and torch.cuda.is_available():
         gpu_name = torch.cuda.get_device_name(0)
@@ -50,24 +39,13 @@ async def lifespan(app: FastAPI):
     else:
         print("[Hardware] CPU Execution Mode")
 
-    # 1. Preload Whisper on CUDA GPU
-    if WHISPER_AVAILABLE:
-        try:
-            WhisperRecognizer.preload()
-        except Exception as e:
-            print(f"[Startup Preload Warning] Failed to preload Whisper: {e}")
-
-    # 2. Preload Wav2Vec2 CTC on CUDA GPU
-    if DL_AVAILABLE:
-        try:
-            DeepLearningRecognizer.preload()
-        except Exception as e:
-            print(f"[Startup Preload Warning] Failed to preload Wav2Vec2: {e}")
-
-    print("=" * 70)
-    print("[Startup Complete] ALL MODELS FULLY LOADED & PRE-WARMED IN GPU VRAM")
-    print("[Startup Complete] READY FOR ZERO-LATENCY STREAMING SPEECH RECOGNITION")
-    print("=" * 70 + "\n")
+    try:
+        WhisperRecognizer.preload()
+        print("=" * 70)
+        print("[Startup Complete] OPENAI WHISPER PRE-WARMED & READY FOR STREAMING")
+        print("=" * 70 + "\n")
+    except Exception as e:
+        print(f"[Startup Preload Warning] Whisper warmup deferred: {e}\n")
 
     yield
 
@@ -91,11 +69,9 @@ async def health():
     gpu_name = torch.cuda.get_device_name(0) if cuda_avail else None
     return {
         "status": "healthy",
-        "deep_learning_available": DL_AVAILABLE,
         "whisper_available": WHISPER_AVAILABLE,
         "cuda_available": cuda_avail,
         "gpu_name": gpu_name,
-        "aws_streaming_available": AWS_AVAILABLE,
         "supported_policies": [m.value for m in PolicyMode]
     }
 
@@ -147,7 +123,7 @@ async def websocket_transcribe(websocket: WebSocket):
             async for hyp in adapter.receive_events():
                 update = session.handle_hypothesis(hyp)
                 await websocket.send_text(update.model_dump_json())
-        except Exception as e:
+        except Exception:
             pass
 
     try:
@@ -171,24 +147,15 @@ async def websocket_transcribe(websocket: WebSocket):
 
                     session = TranscriptionSession(session_id, config)
 
-                    if provider in ("whisper", "deep_learning_whisper") and WHISPER_AVAILABLE:
-                        adapter = WhisperRecognizer()
-                    elif provider in ("deep_learning", "local_dl", "wav2vec2") and DL_AVAILABLE:
-                        adapter = DeepLearningRecognizer()
-                    elif provider == "aws" and AWS_AVAILABLE:
-                        adapter = AWSTranscribeAdapter()
-                    else:
+                    if provider == "mock":
                         adapter = DeterministicMockRecognizer()
+                    else:
+                        adapter = WhisperRecognizer()
 
                     await adapter.start_session(session_id)
                     worker_task = asyncio.create_task(event_forwarder())
 
-                    actual_provider = (
-                        "whisper" if isinstance(adapter, WhisperRecognizer)
-                        else ("deep_learning" if isinstance(adapter, DeepLearningRecognizer)
-                        else ("aws" if isinstance(adapter, AWSTranscribeAdapter)
-                        else "mock"))
-                    )
+                    actual_provider = "mock" if isinstance(adapter, DeterministicMockRecognizer) else "whisper"
                     await websocket.send_json({
                         "type": "session_started",
                         "session_id": session_id,

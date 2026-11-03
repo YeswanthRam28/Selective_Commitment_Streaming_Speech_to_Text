@@ -1,0 +1,20 @@
+[Unit]
+Description=TWO 26 Selective Commitment Streaming ASR - Frontend Service
+After=network.target backend.service
+Wants=backend.service
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/Selective_Commitment_Streaming_Speech_to_Text/frontend
+Environment="PATH=/usr/bin:/usr/local/bin:/home/ubuntu/Selective_Commitment_Streaming_Speech_to_Text/frontend/node_modules/.bin"
+Environment="NODE_ENV=production"
+ExecStart=/usr/bin/npm run preview -- --host 0.0.0.0 --port 5173
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

@@ -3,9 +3,9 @@ import type { PolicyConfig, PolicyMode } from '../types';
 
 interface ControlsProps {
   isListening: boolean;
-  provider: 'whisper' | 'deep_learning' | 'mock' | 'aws';
+  provider: 'whisper' | 'mock';
   config: PolicyConfig;
-  onToggleProvider: (p: 'whisper' | 'deep_learning' | 'mock' | 'aws') => void;
+  onToggleProvider: (p: 'whisper' | 'mock') => void;
   onUpdateConfig: (cfg: Partial<PolicyConfig>) => void;
   onStartStreaming: () => void;
   onStopStreaming: () => void;
@@ -53,12 +53,10 @@ export const Controls: React.FC<ControlsProps> = ({
             className="control-select"
             value={provider}
             disabled={isListening}
-            onChange={(e) => onToggleProvider(e.target.value as 'whisper' | 'deep_learning' | 'aws' | 'mock')}
+            onChange={(e) => onToggleProvider(e.target.value as 'whisper' | 'mock')}
           >
             <option value="whisper">OpenAI Whisper (On-Device GPU)</option>
-            <option value="deep_learning">CTC Acoustic Model Wav2Vec2 (GPU)</option>
-            <option value="mock">Deterministic Synthetic Mock</option>
-            <option value="aws">AWS Transcribe Streaming</option>
+            <option value="mock">Deterministic Synthetic Mock (Replay)</option>
           </select>
         </div>
 
@@ -71,18 +69,19 @@ export const Controls: React.FC<ControlsProps> = ({
             <input
               id="stability-input"
               type="range"
-              min="1"
-              max="5"
-              step="1"
-              className="control-slider"
+              min={1}
+              max={6}
               value={config.required_stability_updates}
               disabled={isListening}
-              onChange={(e) => onUpdateConfig({ required_stability_updates: parseInt(e.target.value) })}
+              onChange={(e) =>
+                onUpdateConfig({ required_stability_updates: parseInt(e.target.value, 10) })
+              }
+              className="control-slider"
             />
           </div>
         )}
 
-        {/* Max Provisional Deadline */}
+        {/* Deadline Fallback (Selective Commitment) */}
         {config.mode === 'selective_commitment' && (
           <div className="control-group">
             <label className="control-label" htmlFor="deadline-input">
@@ -91,84 +90,70 @@ export const Controls: React.FC<ControlsProps> = ({
             <input
               id="deadline-input"
               type="range"
-              min="0.5"
-              max="6.0"
-              step="0.5"
-              className="control-slider"
+              min={0.5}
+              max={5.0}
+              step={0.5}
               value={config.max_provisional_duration_sec}
               disabled={isListening}
-              onChange={(e) => onUpdateConfig({ max_provisional_duration_sec: parseFloat(e.target.value) })}
+              onChange={(e) =>
+                onUpdateConfig({ max_provisional_duration_sec: parseFloat(e.target.value) })
+              }
+              className="control-slider"
             />
           </div>
         )}
 
-        {/* Fixed Lag (Fixed Delay Mode) */}
+        {/* Fixed Delay Lag (Fixed Delay Baseline) */}
         {config.mode === 'fixed_delay' && (
           <div className="control-group">
             <label className="control-label" htmlFor="lag-input">
-              Lag Frontier: {config.fixed_delay_updates} tokens
+              Commitment Lag: {config.fixed_delay_updates} tokens
             </label>
             <input
               id="lag-input"
               type="range"
-              min="1"
-              max="6"
-              step="1"
-              className="control-slider"
+              min={1}
+              max={8}
               value={config.fixed_delay_updates}
               disabled={isListening}
-              onChange={(e) => onUpdateConfig({ fixed_delay_updates: parseInt(e.target.value) })}
+              onChange={(e) =>
+                onUpdateConfig({ fixed_delay_updates: parseInt(e.target.value, 10) })
+              }
+              className="control-slider"
             />
           </div>
         )}
       </div>
 
-      {/* Action Buttons */}
       <div className="controls-actions">
         {!isListening ? (
           <button
-            id="start-capture-btn"
-            className="btn btn-primary"
+            className="studio-btn btn-primary"
             onClick={onStartStreaming}
             disabled={isReplaying}
           >
-            <span className="btn-icon">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line></svg>
-            </span>
-            Start Streaming
+            <span className="btn-icon">🎙️</span> Start Live Recognition
           </button>
         ) : (
-          <button
-            id="stop-capture-btn"
-            className="btn btn-danger"
-            onClick={onStopStreaming}
-          >
-            <span className="btn-icon">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"></rect></svg>
-            </span>
-            Stop Streaming
+          <button className="studio-btn btn-danger" onClick={onStopStreaming}>
+            <span className="btn-icon">⏹️</span> Stop Recognition
           </button>
         )}
 
         <button
-          id="replay-test-btn"
-          className="btn btn-secondary"
+          className="studio-btn btn-secondary"
           onClick={onRunReplay}
           disabled={isListening || isReplaying}
         >
-          <span className="btn-icon">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
-          </span>
-          Run Replay Evaluation
+          <span className="btn-icon">▶️</span> Run Deterministic Replay
         </button>
 
         <button
-          id="clear-btn"
-          className="btn btn-outline"
+          className="studio-btn btn-outline"
           onClick={onClear}
-          disabled={isListening || isReplaying}
+          disabled={isListening}
         >
-          Clear
+          Clear Display
         </button>
       </div>
     </div>

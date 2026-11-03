@@ -1,4 +1,4 @@
-﻿# Python
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
@@ -13,8 +13,9 @@ htmlcov/
 *.egg-info/
 .installed.cfg
 *.egg
+*.log
 
-# Model Checkpoints & Large Binaries
+# Model Weights, Checkpoints & Large Media Binaries
 *.pt
 *.pth
 *.bin
@@ -23,7 +24,14 @@ htmlcov/
 *.wav
 *.pcm
 *.mp3
-!backend/app/ml/checkpoints/.gitkeep
+*.flac
+*.tar
+*.gz
+checkpoints/
+data/
+librispeech/
+.cache/
+huggingface/
 
 # Node & Frontend
 node_modules/

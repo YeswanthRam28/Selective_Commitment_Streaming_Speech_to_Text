@@ -13,7 +13,7 @@ const DEFAULT_CONFIG: PolicyConfig = {
 };
 
 export const App: React.FC = () => {
-  const [provider, setProvider] = useState<'whisper' | 'deep_learning' | 'mock' | 'aws'>('whisper');
+  const [provider, setProvider] = useState<'whisper' | 'mock'>('whisper');
   const [config, setConfig] = useState<PolicyConfig>(DEFAULT_CONFIG);
   const [isListening, setIsListening] = useState(false);
   const [isReplaying, setIsReplaying] = useState(false);
@@ -22,11 +22,9 @@ export const App: React.FC = () => {
   const [replayResult, setReplayResult] = useState<any | null>(null);
   const [serverHealth, setServerHealth] = useState<{
     status: string;
-    deep_learning_available: boolean;
     whisper_available?: boolean;
     cuda_available: boolean;
     gpu_name?: string;
-    aws_streaming_available: boolean;
   } | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -90,16 +88,17 @@ export const App: React.FC = () => {
         }
       };
 
+      ws.onerror = (err) => {
+        console.error('WebSocket error:', err);
+        stopStreaming();
+      };
+
       ws.onclose = () => {
         setIsListening(false);
       };
-
-      ws.onerror = (e) => {
-        console.error('WebSocket error:', e);
-        stopStreaming();
-      };
-    } catch (err) {
-      console.error('Failed to start streaming:', err);
+    } catch (e) {
+      console.error('Failed to connect:', e);
+      setIsListening(false);
     }
   };
 
@@ -108,18 +107,17 @@ export const App: React.FC = () => {
       recorderRef.current.stop();
       recorderRef.current = null;
     }
-
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({ action: 'stop' }));
       wsRef.current.close();
       wsRef.current = null;
     }
-
     setIsListening(false);
   };
 
   const runReplayEvaluation = async () => {
     setIsReplaying(true);
+    setReplayResult(null);
     try {
       const res = await fetch('http://localhost:8000/api/replay', {
         method: 'POST',
@@ -128,8 +126,8 @@ export const App: React.FC = () => {
       });
       const data = await res.json();
       setReplayResult(data);
-    } catch (err) {
-      alert('Failed to connect to backend evaluation API. Is backend running on port 8000?');
+    } catch (e) {
+      console.error('Replay error:', e);
     } finally {
       setIsReplaying(false);
     }
@@ -142,10 +140,9 @@ export const App: React.FC = () => {
   };
 
   return (
-    <>
-      {/* Background doodles */}
-      <div className="bg-doodle-left"></div>
-      <div className="bg-doodle-right"></div>
+    <div className="two26-theme">
+      {/* Dynamic Background Noise Texture */}
+      <div className="bg-grain" />
 
       <div className="app-container">
         {/* Editorial Navbar */}
@@ -206,15 +203,11 @@ export const App: React.FC = () => {
           <div className="hero-badges-row">
             <span className="status-badge-pill badge-online">
               {serverHealth?.cuda_available
-                ? `CUDA Active (${serverHealth.gpu_name || 'RTX 3050'})`
+                ? `CUDA Active (${serverHealth.gpu_name || 'GPU'})`
                 : (serverHealth ? 'Backend Online (CPU)' : 'Connecting to Backend...')}
             </span>
             <span className="status-badge-pill">
-              {provider === 'whisper'
-                ? 'OpenAI Whisper (GPU)'
-                : (provider === 'deep_learning'
-                  ? 'CTC Wav2Vec2 (GPU)'
-                  : (provider === 'aws' ? 'AWS Transcribe Stream' : 'Deterministic Mock Mode'))}
+              {provider === 'whisper' ? 'OpenAI Whisper (On-Device)' : 'Deterministic Mock Mode'}
             </span>
           </div>
         </section>
@@ -238,7 +231,7 @@ export const App: React.FC = () => {
           {/* Live Transcript View */}
           <TranscriptView spans={spans} isListening={isListening} />
 
-          {/* Real-time Metrics and Evaluation */}
+          {/* Real-time Metrics & Stability Evaluation */}
           <MetricsPanel
             spans={spans}
             updateCount={updateCount}
@@ -246,15 +239,14 @@ export const App: React.FC = () => {
           />
         </main>
 
-        {/* Studio Footer */}
-        <footer className="app-footer">
+        <footer className="footer">
           <p>
-            TWO 26 • Selective Commitment Speech Recognition Policy Engine. Decoupling provisional hypotheses from stable output.
+            Selective Commitment Speech Recognition System &bull; Powered by OpenAI Whisper
           </p>
         </footer>
       </div>
-    </>
+    </div>
   );
 };
 
-export default App;
+export default App;
