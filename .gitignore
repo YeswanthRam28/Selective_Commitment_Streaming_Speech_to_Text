@@ -1,0 +1,42 @@
+﻿# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Model Checkpoints & Large Binaries
+*.pt
+*.pth
+*.bin
+*.safetensors
+*.onnx
+*.wav
+*.pcm
+*.mp3
+!backend/app/ml/checkpoints/.gitkeep
+
+# Node & Frontend
+node_modules/
+dist/
+.DS_Store
+*.local
+.env
+.env.*
+!.env.example
+.vite/
+
+# IDE & Editor
+.vscode/
+.idea/
+*.swp
+*.swo
