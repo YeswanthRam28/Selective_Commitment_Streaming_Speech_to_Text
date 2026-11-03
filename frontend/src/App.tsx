@@ -12,7 +12,16 @@ const DEFAULT_CONFIG: PolicyConfig = {
   fixed_delay_updates: 3,
 };
 
+const getBackendUrls = () => {
+  const host = typeof window !== 'undefined' && window.location.hostname ? window.location.hostname : 'localhost';
+  return {
+    http: `http://${host}:8000`,
+    ws: `ws://${host}:8000`,
+  };
+};
+
 export const App: React.FC = () => {
+  const { http: backendHttp, ws: backendWs } = getBackendUrls();
   const [provider, setProvider] = useState<'whisper' | 'mock'>('whisper');
   const [config, setConfig] = useState<PolicyConfig>(DEFAULT_CONFIG);
   const [isListening, setIsListening] = useState(false);
@@ -31,12 +40,12 @@ export const App: React.FC = () => {
   const recorderRef = useRef<AudioRecorder | null>(null);
 
   useEffect(() => {
-    // Check backend health
-    fetch('http://localhost:8000/health')
+    // Check backend health dynamically using current host
+    fetch(`${backendHttp}/health`)
       .then((res) => res.json())
       .then((data) => setServerHealth(data))
       .catch(() => setServerHealth(null));
-  }, []);
+  }, [backendHttp]);
 
   const handleUpdateConfig = (newConfig: Partial<PolicyConfig>) => {
     setConfig((prev) => ({ ...prev, ...newConfig }));
@@ -44,7 +53,7 @@ export const App: React.FC = () => {
 
   const startStreaming = async () => {
     try {
-      const ws = new WebSocket('ws://localhost:8000/ws/transcribe');
+      const ws = new WebSocket(`${backendWs}/ws/transcribe`);
       wsRef.current = ws;
 
       ws.onopen = () => {
@@ -119,7 +128,7 @@ export const App: React.FC = () => {
     setIsReplaying(true);
     setReplayResult(null);
     try {
-      const res = await fetch('http://localhost:8000/api/replay', {
+      const res = await fetch(`${backendHttp}/api/replay`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ policy_config: config }),
